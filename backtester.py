@@ -134,21 +134,25 @@ class PropBacktester:
 # 4. RUN TEST
 # ==========================================================
 
+from data_loader import build_live_market_test_batch
+
 if __name__ == "__main__":
     backtester = PropBacktester(initial_bankroll=1000.0, kelly_fraction=0.25)
 
-    # Sample dataset representing sportsbook lines vs projected stats
-    test_data = [
-        {"player": "Tyrese Haliburton", "prop": "Assists", "line": 9.5, "proj": 11.2, "actual": 12, "over_odds": -115, "under_odds": -115, "type": "discrete"},
-        {"player": "Jayson Tatum", "prop": "Points", "line": 27.5, "proj": 24.1, "actual": 22, "over_odds": -110, "under_odds": -110, "type": "continuous"},
-        {"player": "Nikola Jokic", "prop": "Rebounds", "line": 12.5, "proj": 12.4, "actual": 13, "over_odds": -110, "under_odds": -110, "type": "discrete"},
-        {"player": "Victor Wembanyama", "prop": "Blocks", "line": 3.5, "proj": 4.8, "actual": 5, "over_odds": +110, "under_odds": -140, "type": "discrete"},
-        {"player": "Luka Doncic", "prop": "Points", "line": 32.5, "proj": 33.0, "actual": 29, "over_odds": -115, "under_odds": -115, "type": "continuous"},
-        {"player": "Anthony Edwards", "prop": "Assists", "line": 5.5, "proj": 3.9, "actual": 4, "over_odds": -110, "under_odds": -110, "type": "discrete"},
+    # Real active stars to test against live market lines
+    sample_targets = [
+        {"player": "Tyrese Haliburton", "prop": "Assists", "line": 9.5, "over_odds": -115, "under_odds": -115},
+        {"player": "Jayson Tatum", "prop": "Points", "line": 26.5, "over_odds": -110, "under_odds": -110},
+        {"player": "Nikola Jokic", "prop": "Rebounds", "line": 12.5, "over_odds": -115, "under_odds": -115},
+        {"player": "Victor Wembanyama", "prop": "Blocks", "line": 3.5, "over_odds": +115, "under_odds": -145},
+        {"player": "Anthony Edwards", "prop": "Assists", "line": 5.5, "over_odds": -110, "under_odds": -110},
     ]
 
-    print("Running Backtest on Out-of-Sample Records...\n")
-    for game in test_data:
+    print("\n[1/2] Connecting to Sleeper & NBA Stats to pull live player distributions...")
+    live_test_data = build_live_market_test_batch(sample_targets)
+
+    print(f"\n[2/2] Running Backtest on {len(live_test_data)} Live Market Scenarios...\n")
+    for game in live_test_data:
         backtester.evaluate_game(game)
 
     backtester.summary()
