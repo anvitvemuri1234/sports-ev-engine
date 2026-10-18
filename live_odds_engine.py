@@ -3,7 +3,7 @@ import requests
 # -------------------------------------------------------------
 # PASTE YOUR FREE KEY FROM THE-ODDS-API.COM HERE
 # -------------------------------------------------------------
-API_KEY = "PASTE_YOUR_API_KEY_HERE"
+API_KEY = "89c1a3d5b262f10b1df6230a275f75eb"
 
 SPORT = "basketball_nba"
 REGIONS = "us"
