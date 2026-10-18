@@ -35,15 +35,23 @@ def calculate_kelly(true_prob: float, odds: int, fraction: float = 0.25) -> floa
 # ---------------------------------------------------------
 st.sidebar.header("⚙️ Scanner Settings")
 
-# Check Streamlit secrets first, then local env, or let user input in sidebar
-# Safely check secrets, falling back to empty string if no local secrets file exists
-api_key_default = ""
+# Check if an admin key exists in secrets/env as an optional fallback
+default_key = ""
 try:
     if "ODDS_API_KEY" in st.secrets:
-        api_key_default = st.secrets["ODDS_API_KEY"]
+        default_key = st.secrets["ODDS_API_KEY"]
 except Exception:
-    api_key_default = os.getenv("ODDS_API_KEY", "")
-api_key = st.sidebar.text_input("The Odds API Key", value=api_key_default, type="password")
+    default_key = os.getenv("ODDS_API_KEY", "")
+
+# Allow the user to input their own key (masks input like a password)
+api_key = st.sidebar.text_input(
+    "Enter Your The Odds API Key",
+    value=default_key,
+    type="password",
+    help="Paste your free API key from https://the-odds-api.com"
+)
+
+st.sidebar.caption("👉 Need a key? Get 500 free requests/month at [the-odds-api.com](https://the-odds-api.com).")
 
 selected_sports = st.sidebar.multiselect(
     "Select Leagues",
@@ -55,14 +63,6 @@ selected_sports = st.sidebar.multiselect(
 bankroll = st.sidebar.number_input("Total Bankroll ($)", min_value=100.0, value=1000.0, step=50.0)
 min_edge_pct = st.sidebar.slider("Minimum +EV Edge (%)", min_value=0.5, max_value=8.0, value=1.5, step=0.1)
 kelly_mult = st.sidebar.selectbox("Kelly Fraction", options=[0.125, 0.25, 0.5], index=1, format_func=lambda x: f"{x}x (Fractional Kelly)")
-
-TARGET_BOOKS = {
-    "draftkings": "DraftKings",
-    "fanduel": "FanDuel",
-    "betmgm": "BetMGM",
-    "williamhill_us": "Caesars",
-    "betrivers": "BetRivers"
-}
 
 # ---------------------------------------------------------
 # MAIN DASHBOARD INTERFACE
