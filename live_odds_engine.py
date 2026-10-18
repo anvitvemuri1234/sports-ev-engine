@@ -5,18 +5,12 @@ from collections import defaultdict
 # -------------------------------------------------------------
 # API CONFIGURATION
 # -------------------------------------------------------------
-API_KEY = os.getenv("ODDS_API_KEY", "89c1a3d5b262f10b1df6230a275f75eb")
+API_KEY = os.getenv("ODDS_API_KEY", "PASTE_YOUR_API_KEY_HERE")
 
-# Scanning Pro and College boards dramatically increases opportunities
-SPORTS = [
-    "americanfootball_nfl",
-    "americanfootball_ncaaf",  # College Football (huge Saturday volume)
-    "basketball_nba",
-]
-
+SPORTS = ["americanfootball_nfl", "basketball_nba"]
 REGIONS = "us"
-# Main markets
-MAIN_MARKETS = "h2h,spreads,totals"
+# Explicitly pulling all 3 primary markets
+MARKETS = "h2h,spreads,totals"
 
 TARGET_BOOKS = {
     "draftkings": "DraftKings",
@@ -42,14 +36,12 @@ def calculate_kelly(true_prob: float, odds: int, fraction: float = 0.25) -> floa
     f_star = (b * true_prob - q) / b
     return max(0.0, f_star * fraction)
 
-# ==========================================================
-# 1. CONSENSUS DEVIGGING & EV CHECKER
-# ==========================================================
+def evaluate_market_group(sport_label: str, matchup: str, market_name: str, lines_dict: dict, bankroll: float):
+    alerts = 0
 
-def evaluate_line_offers(matchup: str, market_label: str, offers: dict, bankroll: float):
-    found = 0
-    for line_val, books in offers.items():
-        if len(books) < 3:
+    for line_val, books in lines_dict.items():
+        # Require at least 2 books on this line to establish a baseline
+        if len(books) < 2:
             continue
 
         side_a_probs, side_b_probs = [], []
@@ -59,123 +51,114 @@ def evaluate_line_offers(matchup: str, market_label: str, offers: dict, bankroll
             names = list(pair.keys())
             if len(names) != 2:
                 continue
+
             side_a_name, side_b_name = names[0], names[1]
             p_a = american_to_prob(pair[side_a_name])
             p_b = american_to_prob(pair[side_b_name])
 
-            side_a_probs.append(p_a / (p_a + p_b))
-            side_b_probs.append(p_b / (p_a + p_b))
+            # Devigging formula: remove overround
+            fair_a = p_a / (p_a + p_b)
+            fair_b = p_b / (p_a + p_b)
+
+            side_a_probs.append(fair_a)
+            side_b_probs.append(fair_b)
 
         if not side_a_probs:
             continue
 
-        fair_p_a = sum(side_a_probs) / len(side_a_probs)
-        fair_p_b = sum(side_b_probs) / len(side_b_probs)
+        true_prob_a = sum(side_a_probs) / len(side_a_probs)
+        true_prob_b = sum(side_b_probs) / len(side_b_probs)
 
+        # Check for edges across your target books
         for target_key, target_display in TARGET_BOOKS.items():
             if target_key not in books:
                 continue
+
             target_odds = books[target_key]
-            for side_name, true_prob in [(side_a_name, fair_p_a), (side_b_name, fair_p_b)]:
+            for side_name, true_prob in [(side_a_name, true_prob_a), (side_b_name, true_prob_b)]:
                 if side_name in target_odds:
                     odds = target_odds[side_name]
                     b = american_to_decimal_net(odds)
                     ev = (true_prob * b) - (1.0 - true_prob)
 
-                    if ev > 0.015:  # +1.5% edge threshold
-                        found += 1
+                    # Strict +1.5% edge filter
+                    if ev > 0.015:
+                        alerts += 1
                         kelly = calculate_kelly(true_prob, odds, fraction=0.25)
                         stake_pct = min(kelly, 0.05)
                         cash_stake = round(bankroll * stake_pct, 2)
 
-                        line_str = f" ({line_val})" if line_val != "ML" else ""
-                        print(f"🔥 [+EV ALERT] {matchup}")
-                        print(f"   Market:          {market_label.upper()}")
+                        # Format line display for spreads and totals
+                        line_str = f" {line_val:+g}" if isinstance(line_val, (int, float)) and line_val != 0 else (f" {line_val}" if line_val != "ML" else "")
+                        
+                        print(f"🔥 [+EV ALERT] [{sport_label}] {matchup}")
+                        print(f"   Market:          {market_name.upper()}")
                         print(f"   Sportsbook:      {target_display}")
-                        print(f"   Recommendation:  {side_name}{line_str} @ {odds:+d}")
+                        print(f"   Pick:            {side_name}{line_str} @ {odds:+d}")
                         print(f"   Consensus Prob:  {true_prob * 100:.2f}%")
                         print(f"   Expected Value:  +{ev * 100:.2f}%")
                         print(f"   Kelly Stake:     ${cash_stake:.2f} ({stake_pct * 100:.1f}%)\n")
-    return found
+    return alerts
 
-# ==========================================================
-# 2. SCAN BROAD GAME MAINLINES (NFL, NCAAF, NBA)
-# ==========================================================
-
-def scan_broad_boards(bankroll: float = 1000.0):
+def scan_all_markets(bankroll: float = 1000.0):
     for sport in SPORTS:
+        label = "NFL" if "nfl" in sport else "NBA"
+        print(f"\n==========================================")
+        print(f"  SCANNING {label} (SPREADS, TOTALS, ML)")
+        print(f"==========================================")
+
         url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds/"
-        params = {"apiKey": API_KEY, "regions": REGIONS, "markets": MAIN_MARKETS, "oddsFormat": "american"}
+        params = {
+            "apiKey": API_KEY,
+            "regions": REGIONS,
+            "markets": MARKETS,
+            "oddsFormat": "american"
+        }
+
         res = requests.get(url, params=params)
         if res.status_code != 200:
+            print(f"API Error ({res.status_code}): {res.text}")
             continue
 
         games = res.json()
-        print(f"\nScanning {sport.upper()} ({len(games)} games)...")
-        alerts = 0
+        remaining = res.headers.get("x-requests-remaining", "N/A")
+        print(f"Loaded {len(games)} games. (Requests left this month: {remaining})")
 
+        found = 0
         for game in games:
             matchup = f"{game['away_team']} @ {game['home_team']}"
-            market_data = {"h2h": defaultdict(dict), "spreads": defaultdict(dict), "totals": defaultdict(dict)}
+
+            # Groupings: market_type -> line_value -> bookmaker -> {outcome: price}
+            parsed_markets = {
+                "h2h": defaultdict(dict),
+                "spreads": defaultdict(dict),
+                "totals": defaultdict(dict)
+            }
 
             for book in game.get("bookmakers", []):
                 b_name = book["key"]
                 for m in book.get("markets", []):
                     m_key = m["key"]
-                    if m_key not in market_data:
+                    if m_key not in parsed_markets:
                         continue
+
                     for out in m.get("outcomes", []):
                         name = out["name"]
                         price = out["price"]
+                        # Grabs handicap point for spreads (e.g. -3.5) or over/under total (e.g. 45.5)
                         line_val = out.get("point", "ML")
-                        if b_name not in market_data[m_key][line_val]:
-                            market_data[m_key][line_val][b_name] = {}
-                        market_data[m_key][line_val][b_name][name] = price
 
-            for m_key in ["h2h", "spreads", "totals"]:
-                alerts += evaluate_line_offers(matchup, m_key, market_data[m_key], bankroll)
+                        if b_name not in parsed_markets[m_key][line_val]:
+                            parsed_markets[m_key][line_val][b_name] = {}
+                        parsed_markets[m_key][line_val][b_name][name] = price
 
-# ==========================================================
-# 3. SCAN TARGETED PLAYER PROPS (CONSERVES QUOTA)
-# ==========================================================
+            # Scan Spreads, Game Totals, and Moneyline
+            found += evaluate_market_group(label, matchup, "SPREAD", parsed_markets["spreads"], bankroll)
+            found += evaluate_market_group(label, matchup, "TOTAL (OVER/UNDER)", parsed_markets["totals"], bankroll)
+            found += evaluate_market_group(label, matchup, "MONEYLINE", parsed_markets["h2h"], bankroll)
 
-def scan_game_player_props(sport: str, event_id: str, matchup_label: str, prop_markets: list, bankroll: float = 1000.0):
-    """
-    Pulls player prop lines for a single high-profile game.
-    Example prop_markets: ['player_pass_yds', 'player_points', 'player_assists']
-    """
-    url = f"https://api.the-odds-api.com/v4/sports/{sport}/events/{event_id}/odds"
-    params = {
-        "apiKey": API_KEY,
-        "regions": REGIONS,
-        "markets": ",".join(prop_markets),
-        "oddsFormat": "american"
-    }
-    res = requests.get(url, params=params)
-    if res.status_code != 200:
-        return
-
-    data = res.json()
-    prop_data = defaultdict(lambda: defaultdict(dict))
-
-    for book in data.get("bookmakers", []):
-        b_name = book["key"]
-        for m in book.get("markets", []):
-            m_key = m["key"]
-            for out in m.get("outcomes", []):
-                # Outcomes for props have 'description' (Player Name) and 'name' (Over/Under)
-                player_name = out.get("description", "Player")
-                over_under = out.get("name")
-                price = out.get("price")
-                point = out.get("point")
-
-                identifier = f"{player_name} - {m_key} ({point})"
-                if b_name not in prop_data[identifier][point]:
-                    prop_data[identifier][point][b_name] = {}
-                prop_data[identifier][point][b_name][over_under] = price
-
-    for identifier, lines in prop_data.items():
-        evaluate_line_offers(f"{matchup_label} [{identifier}]", "PLAYER PROP", lines, bankroll)
+        if found == 0:
+            print(f"No +EV spread, total, or moneyline edges found across {label} right now.")
 
 if __name__ == "__main__":
-    scan_broad_boards(bankroll=1000.0)
+    scan_all_markets(bankroll=1000.0)
