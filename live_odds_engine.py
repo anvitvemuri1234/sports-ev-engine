@@ -5,7 +5,7 @@ from collections import defaultdict
 # -------------------------------------------------------------
 # SET YOUR API KEY
 # -------------------------------------------------------------
-API_KEY = os.getenv("ODDS_API_KEY", "PASTE_YOUR_API_KEY_HERE")
+API_KEY = os.getenv("ODDS_API_KEY", "89c1a3d5b262f10b1df6230a275f75eb")
 
 SPORT = "basketball_nba"
 REGIONS = "us"
