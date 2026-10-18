@@ -36,7 +36,13 @@ def calculate_kelly(true_prob: float, odds: int, fraction: float = 0.25) -> floa
 st.sidebar.header("⚙️ Scanner Settings")
 
 # Check Streamlit secrets first, then local env, or let user input in sidebar
-api_key_default = st.secrets.get("ODDS_API_KEY", os.getenv("ODDS_API_KEY", ""))
+# Safely check secrets, falling back to empty string if no local secrets file exists
+api_key_default = ""
+try:
+    if "ODDS_API_KEY" in st.secrets:
+        api_key_default = st.secrets["ODDS_API_KEY"]
+except Exception:
+    api_key_default = os.getenv("ODDS_API_KEY", "")
 api_key = st.sidebar.text_input("The Odds API Key", value=api_key_default, type="password")
 
 selected_sports = st.sidebar.multiselect(
