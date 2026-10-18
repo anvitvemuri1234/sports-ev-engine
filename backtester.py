@@ -141,11 +141,11 @@ if __name__ == "__main__":
 
     # Real active stars to test against live market lines
     sample_targets = [
-        {"player": "Tyrese Haliburton", "prop": "Assists", "line": 9.5, "over_odds": -115, "under_odds": -115},
-        {"player": "Jayson Tatum", "prop": "Points", "line": 26.5, "over_odds": -110, "under_odds": -110},
-        {"player": "Nikola Jokic", "prop": "Rebounds", "line": 12.5, "over_odds": -115, "under_odds": -115},
-        {"player": "Victor Wembanyama", "prop": "Blocks", "line": 3.5, "over_odds": +115, "under_odds": -145},
-        {"player": "Anthony Edwards", "prop": "Assists", "line": 5.5, "over_odds": -110, "under_odds": -110},
+        {"player": "Tyrese Haliburton", "opponent": "DET", "prop": "Assists", "line": 9.5, "over_odds": -115, "under_odds": -115},
+        {"player": "Jayson Tatum", "opponent": "MIA", "prop": "Points", "line": 26.5, "over_odds": -110, "under_odds": -110},
+        {"player": "Nikola Jokić", "opponent": "LAL", "prop": "Rebounds", "line": 12.5, "over_odds": -115, "under_odds": -115},
+        {"player": "Victor Wembanyama", "opponent": "UTA", "prop": "Blocks", "line": 3.5, "over_odds": +115, "under_odds": -145},
+        {"player": "Anthony Edwards", "opponent": "ORL", "prop": "Assists", "line": 5.5, "over_odds": -110, "under_odds": -110},
     ]
 
     print("\n[1/2] Connecting to Sleeper & NBA Stats to pull live player distributions...")
