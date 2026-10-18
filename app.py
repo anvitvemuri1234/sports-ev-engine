@@ -73,8 +73,13 @@ Identifies positive expected value ($+EV$) pricing discrepancies on **DraftKings
 relative to market consensus, and computes optimal position sizes using **Fractional Kelly**.
 """)
 
-if not api_key:
-    st.warning("⚠️ Enter your free API Key from [the-odds-api.com](https://the-odds-api.com) in the left sidebar to start scanning.")
+if not api_key.strip():
+    st.info("👋 **Welcome!** To scan live market odds, please paste your **The Odds API Key** in the sidebar on the left.")
+    st.markdown("""
+    1. Grab a free API key at **[the-odds-api.com](https://the-odds-api.com)** (no credit card required, 500 free requests/month).
+    2. Paste it into the sidebar input field.
+    3. Choose your leagues and hit **Scan Live Sportsbooks Now**!
+    """)
     st.stop()
 
 scan_button = st.button("🚀 Scan Live Sportsbooks Now", type="primary")
