@@ -4,13 +4,12 @@ from collections import defaultdict
 
 # -------------------------------------------------------------
 # SET YOUR API KEY
-# Recommendation: set environment variable ODDS_API_KEY, or paste string directly
 # -------------------------------------------------------------
-API_KEY = os.getenv("ODDS_API_KEY", "89c1a3d5b262f10b1df6230a275f75eb")
+API_KEY = os.getenv("ODDS_API_KEY", "PASTE_YOUR_API_KEY_HERE")
 
 SPORT = "basketball_nba"
 REGIONS = "us"
-# Multiple markets in one request: h2h (moneyline), spreads, totals
+# Pull moneylines, spreads, and over/under totals in a single request
 MARKETS = "h2h,spreads,totals"
 
 def american_to_prob(odds: int) -> float:
@@ -20,7 +19,7 @@ def american_to_prob(odds: int) -> float:
     return abs(odds) / (abs(odds) + 100.0)
 
 def american_to_decimal_net(odds: int) -> float:
-    """Returns profit per \$1 staked ('b' in Kelly formula)."""
+    """Returns profit per dollar staked ('b' in Kelly formula)."""
     if odds > 0:
         return odds / 100.0
     return 100.0 / abs(odds)
@@ -41,7 +40,7 @@ def evaluate_market_consensus(market_key: str, offers_by_line: dict, bankroll: f
     
     for line_val, books in offers_by_line.items():
         if len(books) < 3:
-            continue  # Need at least 3 books offering the identical line for consensus
+            continue  # Require at least 3 books offering the identical line
 
         side_a_probs, side_b_probs = [], []
         side_a_name, side_b_name = None, None
@@ -93,4 +92,61 @@ def evaluate_market_consensus(market_key: str, offers_by_line: dict, bankroll: f
                         print(f"   Sportsbook:      {target_book.upper()}")
                         print(f"   Pick:            {side_name}{line_str} @ {odds:+d}")
                         print(f"   Consensus Prob:  {true_prob * 100:.2f}%")
-                        print(f"   Expected Value:  +{ev * 10
+                        print(f"   Expected Value:  +{ev * 100:.2f}%")
+                        print(f"   Kelly Stake:     ${cash_stake:.2f} ({stake_pct * 100:.1f}%)\n")
+
+    return found_count
+
+def scan_all_live_markets(bankroll: float = 1000.0):
+    url = f"https://api.the-odds-api.com/v4/sports/{SPORT}/odds/"
+    params = {
+        "apiKey": API_KEY,
+        "regions": REGIONS,
+        "markets": MARKETS,
+        "oddsFormat": "american"
+    }
+
+    print("[1/2] Fetching live Moneylines, Spreads, and Totals...")
+    res = requests.get(url, params=params)
+    if res.status_code != 200:
+        print(f"Error: {res.status_code} - {res.text}")
+        return
+
+    games = res.json()
+    remaining = res.headers.get("x-requests-remaining", "N/A")
+    print(f"[2/2] Ingested {len(games)} live upcoming games. (Monthly API credits left: {remaining})\n")
+
+    total_bets = 0
+
+    for game in games:
+        # market_data structure: market_data[m_key][line_val][bookmaker] = {name: price}
+        market_data = {
+            "h2h": defaultdict(dict),
+            "spreads": defaultdict(dict),
+            "totals": defaultdict(dict),
+        }
+
+        for book in game.get("bookmakers", []):
+            b_name = book["key"]
+            for m in book.get("markets", []):
+                m_key = m["key"]
+                if m_key not in market_data:
+                    continue
+
+                for out in m.get("outcomes", []):
+                    name = out["name"]
+                    price = out["price"]
+                    line_val = out.get("point", "ML")
+
+                    if b_name not in market_data[m_key][line_val]:
+                        market_data[m_key][line_val][b_name] = {}
+                    market_data[m_key][line_val][b_name][name] = price
+
+        for m_key in ["h2h", "spreads", "totals"]:
+            total_bets += evaluate_market_consensus(m_key, market_data[m_key], bankroll)
+
+    if total_bets == 0:
+        print("Board scan complete: No +EV spread, total, or moneyline edges detected right now.")
+
+if __name__ == "__main__":
+    scan_all_live_markets(bankroll=1000.0)
