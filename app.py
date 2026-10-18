@@ -160,7 +160,7 @@ if scan_button:
                                         b = american_to_decimal_net(odds)
                                         ev = (true_prob * b) - (1.0 - true_prob)
 
-                                        if (ev * 100) >= min_edge_pct:
+                                        if min_edge_pct <= (ev * 100) <= 20.0::
                                             kelly = calculate_kelly(true_prob, odds, fraction=kelly_mult)
                                             stake_pct = min(kelly, 0.05)
                                             stake_cash = round(bankroll * stake_pct, 2)
